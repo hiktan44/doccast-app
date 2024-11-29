@@ -2,30 +2,29 @@ export interface Avatar {
   id: string;
   name: string;
   previewUrl: string;
-  gender: 'male' | 'female';
-  style: 'casual' | 'business' | 'professional';
+  style: 'normal' | 'style1' | 'style2';
+  type: 'avatar';
 }
 
 export interface VideoGeneration {
   id: string;
   scriptSectionId: string;
-  audioUrl: string;
-  videoUrl: string;
-  avatarId: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
+  videoUrl?: string;
   progress?: number;
   error?: string;
 }
 
 export interface VideoGenerationOptions {
-  resolution: '720p' | '1080p';
-  background?: string;
-  aspectRatio: '16:9' | '9:16' | '1:1';
+  dimension: {
+    width: number;
+    height: number;
+  };
 }
 
 export class VideoService {
   private apiKey: string;
-  private baseUrl = 'https://api.heygen.com/v1';
+  private baseUrl = 'https://api.heygen.com';
 
   constructor() {
     const apiKey = process.env.REACT_APP_HEYGEN_API_KEY;
@@ -37,10 +36,10 @@ export class VideoService {
 
   async getAvatars(): Promise<Avatar[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/avatars`, {
+      const response = await fetch(`${this.baseUrl}/v2/avatars`, {
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          'X-Api-Key': this.apiKey,
+          'Accept': 'application/json'
         }
       });
 
@@ -49,7 +48,13 @@ export class VideoService {
       }
 
       const data = await response.json();
-      return data.avatars;
+      return data.data.map((avatar: any) => ({
+        id: avatar.avatar_id,
+        name: avatar.name,
+        previewUrl: avatar.preview_url,
+        style: avatar.style || 'normal',
+        type: 'avatar'
+      }));
     } catch (error) {
       console.error('Avatar listesi alma hatası:', error);
       throw new Error('Avatar listesi alınamadı');
@@ -57,24 +62,33 @@ export class VideoService {
   }
 
   async generateVideo(
-    audioUrl: string,
+    text: string,
+    voiceId: string,
     avatarId: string,
     options: VideoGenerationOptions
   ): Promise<VideoGeneration> {
     try {
-      // Video oluşturma isteği gönder
-      const response = await fetch(`${this.baseUrl}/videos`, {
+      const response = await fetch(`${this.baseUrl}/v2/video/generate`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'X-Api-Key': this.apiKey,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          avatar_id: avatarId,
-          audio_url: audioUrl,
-          resolution: options.resolution,
-          background: options.background,
-          aspect_ratio: options.aspectRatio
+          video_inputs: [{
+            character: {
+              type: 'avatar',
+              avatar_id: avatarId,
+              avatar_style: 'normal'
+            },
+            voice: {
+              type: 'text',
+              input_text: text,
+              voice_id: voiceId,
+              speed: 1.0
+            }
+          }],
+          dimension: options.dimension
         })
       });
 
@@ -85,12 +99,8 @@ export class VideoService {
       const data = await response.json();
       return {
         id: data.video_id,
-        scriptSectionId: '', // Bu değer dışarıdan set edilecek
-        audioUrl,
-        videoUrl: '', // Bu URL video hazır olduğunda güncellenecek
-        avatarId,
-        status: 'processing',
-        progress: 0
+        scriptSectionId: '', // Dışarıdan set edilecek
+        status: 'processing'
       };
     } catch (error) {
       console.error('Video oluşturma hatası:', error);
@@ -100,12 +110,15 @@ export class VideoService {
 
   async checkVideoStatus(videoId: string): Promise<VideoGeneration> {
     try {
-      const response = await fetch(`${this.baseUrl}/videos/${videoId}`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+      const response = await fetch(
+        `${this.baseUrl}/v1/video_status.get?video_id=${videoId}`,
+        {
+          headers: {
+            'X-Api-Key': this.apiKey,
+            'Accept': 'application/json'
+          }
         }
-      });
+      );
 
       if (!response.ok) {
         throw new Error('Video durumu alınamadı');
@@ -116,11 +129,9 @@ export class VideoService {
       return {
         id: videoId,
         scriptSectionId: '', // Dışarıdan set edilmeli
-        audioUrl: data.audio_url,
-        videoUrl: data.video_url,
-        avatarId: data.avatar_id,
         status: data.status,
-        progress: data.progress
+        videoUrl: data.video_url,
+        progress: data.progress || 0
       };
     } catch (error) {
       console.error('Video durum kontrol hatası:', error);
@@ -129,7 +140,7 @@ export class VideoService {
   }
 
   async generateVideosForSections(
-    sections: Array<{ id: string; audioUrl: string }>,
+    sections: Array<{ id: string; text: string; voiceId: string }>,
     avatarId: string,
     options: VideoGenerationOptions
   ): Promise<VideoGeneration[]> {
@@ -137,16 +148,18 @@ export class VideoService {
 
     for (const section of sections) {
       try {
-        const generation = await this.generateVideo(section.audioUrl, avatarId, options);
+        const generation = await this.generateVideo(
+          section.text,
+          section.voiceId,
+          avatarId,
+          options
+        );
         generation.scriptSectionId = section.id;
         videoGenerations.push(generation);
       } catch (error: any) {
         videoGenerations.push({
           id: crypto.randomUUID(),
           scriptSectionId: section.id,
-          audioUrl: section.audioUrl,
-          videoUrl: '',
-          avatarId,
           status: 'error',
           error: error.message
         });
