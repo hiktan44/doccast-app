@@ -1,6 +1,13 @@
 import { Document } from '../types/document';
+import { PdfService } from './PdfService';
 
 export class DocumentService {
+  private pdfService: PdfService;
+
+  constructor() {
+    this.pdfService = new PdfService();
+  }
+
   async readFile(file: File): Promise<Document> {
     try {
       const content = await this.parseFile(file);
@@ -26,7 +33,7 @@ export class DocumentService {
       case 'txt':
         return await this.readTextFile(file);
       case 'pdf':
-        return await this.readPdfFile(file);
+        return await this.pdfService.extractText(file);
       case 'docx':
         return await this.readDocxFile(file);
       default:
@@ -52,11 +59,6 @@ export class DocumentService {
       reader.onerror = (e) => reject(e);
       reader.readAsText(file);
     });
-  }
-
-  private async readPdfFile(file: File): Promise<string> {
-    // PDF okuma işlemi için pdf.js kütüphanesi eklenecek
-    throw new Error('PDF okuma özelliği yakında eklenecek');
   }
 
   private async readDocxFile(file: File): Promise<string> {
