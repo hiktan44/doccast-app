@@ -1,11 +1,14 @@
 import { Document } from '../types/document';
 import { PdfService } from './PdfService';
+import { DocxService } from './DocxService';
 
 export class DocumentService {
   private pdfService: PdfService;
+  private docxService: DocxService;
 
   constructor() {
     this.pdfService = new PdfService();
+    this.docxService = new DocxService();
   }
 
   async readFile(file: File): Promise<Document> {
@@ -35,7 +38,7 @@ export class DocumentService {
       case 'pdf':
         return await this.pdfService.extractText(file);
       case 'docx':
-        return await this.readDocxFile(file);
+        return await this.docxService.extractText(file);
       default:
         throw new Error('Desteklenmeyen dosya formatı');
     }
@@ -56,13 +59,29 @@ export class DocumentService {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = (e) => reject(e);
+      reader.onerror = (e) => reject(new Error('TXT dosyası okunamadı'));
       reader.readAsText(file);
     });
   }
 
-  private async readDocxFile(file: File): Promise<string> {
-    // DOCX okuma işlemi için mammoth.js kütüphanesi eklenecek
-    throw new Error('DOCX okuma özelliği yakında eklenecek');
+  async getFormattedContent(file: File): Promise<{ text: string; html?: string }> {
+    const type = this.getFileType(file);
+    
+    switch (type) {
+      case 'docx': {
+        const result = await this.docxService.extractFormattedText(file);
+        return { text: result.value, html: result.html };
+      }
+      case 'pdf': {
+        const text = await this.pdfService.extractText(file);
+        return { text };
+      }
+      case 'txt': {
+        const text = await this.readTextFile(file);
+        return { text };
+      }
+      default:
+        throw new Error('Desteklenmeyen dosya formatı');
+    }
   }
 }
