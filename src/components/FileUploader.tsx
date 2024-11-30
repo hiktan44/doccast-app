@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
-import { DocumentService } from '../services/DocumentService';
 
 export interface UploadedFile {
   id: string;
@@ -17,7 +16,6 @@ interface Props {
 export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const documentService = new DocumentService();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -27,26 +25,28 @@ export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
     setError(null);
 
     try {
-      let type: 'document' | 'audio' = 'document';
-      let content: string | undefined;
-
-      if (file.type.startsWith('audio/')) {
-        type = 'audio';
-      } else {
-        // Doküman içeriğini oku
-        content = await documentService.readFile(file);
-      }
-
+      // Dosya tipini kontrol et
+      const isAudio = file.type.startsWith('audio/');
       const uploadedFile: UploadedFile = {
         id: crypto.randomUUID(),
         file,
-        type,
-        content
+        type: isAudio ? 'audio' : 'document',
       };
 
+      // Eğer döküman ise içeriğini oku
+      if (!isAudio) {
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = () => reject(new Error('Dosya okunamadı'));
+          reader.readAsText(file);
+        });
+        uploadedFile.content = text;
+      }
+
       onFileUploaded(uploadedFile);
-    } catch (err: any) {
-      setError(err.message || 'Dosya yüklenirken bir hata oluştu');
+    } catch (err) {
+      setError('Dosya yüklenirken bir hata oluştu');
       console.error('Dosya yükleme hatası:', err);
     } finally {
       setIsLoading(false);
@@ -62,8 +62,7 @@ export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
       'audio/mpeg': ['.mp3'],
       'audio/wav': ['.wav']
     },
-    maxFiles: 1,
-    multiple: false
+    maxFiles: 1
   });
 
   return (
