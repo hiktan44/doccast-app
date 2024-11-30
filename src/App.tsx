@@ -11,7 +11,16 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <APITester />
+        {/* Test Paneli */}
+        <div className="mb-8">
+          <APITester />
+        </div>
+
+        {/* Ana Uygulama İçeriği */}
+        <div className="p-6 bg-white dark:bg-gray-800 shadow rounded-lg">
+          <h2 className="text-xl font-bold mb-4">Ana Uygulama</h2>
+          {/* Diğer komponentler buraya gelecek */}
+        </div>
       </main>
     </div>
   );
