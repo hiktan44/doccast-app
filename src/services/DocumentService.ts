@@ -1,66 +1,65 @@
-import * as pdfjsLib from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// PDF worker'ı doğru şekilde yapılandır
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Worker'ı ayarla
+GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 export class DocumentService {
   async readFile(file: File): Promise<string> {
-    const extension = file.name.split('.').pop()?.toLowerCase();
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase();
 
-    switch (extension) {
-      case 'txt':
-        return this.readTextFile(file);
-      case 'pdf':
-        return this.readPdfFile(file);
-      case 'docx':
-        return this.readDocxFile(file);
-      default:
-        throw new Error('Desteklenmeyen dosya formatı');
+      switch (extension) {
+        case 'txt':
+          return this.readTextFile(file);
+        case 'pdf':
+          return this.readPdfFile(file);
+        case 'docx':
+          return this.readDocxFile(file);
+        default:
+          throw new Error('Desteklenmeyen dosya formatı');
+      }
+    } catch (error) {
+      console.error('Dosya okuma hatası:', error);
+      throw error;
     }
   }
 
   private async readTextFile(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result;
-        resolve(text as string);
-      };
-      reader.onerror = (e) => reject(new Error('Dosya okunamadı'));
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = () => reject(new Error('Dosya okunamadı'));
       reader.readAsText(file);
     });
   }
 
   private async readPdfFile(file: File): Promise<string> {
     try {
-      // PDF'i arraybuffer olarak oku
-      const arrayBuffer = await file.arrayBuffer();
+      // PDF dosyasını array buffer olarak oku
+      const buffer = await file.arrayBuffer();
       
-      // PDF dokümanını yükle
-      const loadingTask = pdfjsLib.getDocument({
-        data: arrayBuffer,
-        verbosity: 0
-      });
+      // PDF dökümanını yükle
+      const pdfDoc = await getDocument(new Uint8Array(buffer)).promise;
       
-      // PDF dokümanını al
-      const pdf = await loadingTask.promise;
       let fullText = '';
-
-      // Her sayfayı işle
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
+      
+      // Her sayfayı oku
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
         const textContent = await page.getTextContent();
         const pageText = textContent.items
+          .filter((item: any) => item.str.trim().length > 0)
           .map((item: any) => item.str)
           .join(' ');
+        
         fullText += pageText + '\n\n';
       }
-
+      
       return fullText.trim();
     } catch (error) {
       console.error('PDF okuma hatası:', error);
-      throw new Error('PDF dosyası okunamadı');
+      throw new Error('PDF dosyası okunamadı: ' + (error as Error).message);
     }
   }
 
