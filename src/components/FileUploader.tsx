@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
+import { DocumentService } from '../services/DocumentService';
 
 export interface UploadedFile {
   id: string;
@@ -16,6 +17,7 @@ interface Props {
 export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const documentService = new DocumentService();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -26,24 +28,25 @@ export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
 
     try {
       let type: 'document' | 'audio' = 'document';
+      let content: string | undefined;
+
       if (file.type.startsWith('audio/')) {
         type = 'audio';
+      } else {
+        // Doküman içeriğini oku
+        content = await documentService.readFile(file);
       }
 
       const uploadedFile: UploadedFile = {
         id: crypto.randomUUID(),
         file,
-        type
+        type,
+        content
       };
 
-      if (type === 'document') {
-        const text = await file.text();
-        uploadedFile.content = text;
-      }
-
       onFileUploaded(uploadedFile);
-    } catch (err) {
-      setError('Dosya yüklenirken bir hata oluştu.');
+    } catch (err: any) {
+      setError(err.message || 'Dosya yüklenirken bir hata oluştu');
       console.error('Dosya yükleme hatası:', err);
     } finally {
       setIsLoading(false);
@@ -54,7 +57,8 @@ export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
     onDrop,
     accept: {
       'text/plain': ['.txt'],
-      'text/markdown': ['.md'],
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'audio/mpeg': ['.mp3'],
       'audio/wav': ['.wav']
     },
@@ -90,7 +94,7 @@ export const FileUploader: React.FC<Props> = ({ onFileUploaded }) => {
             ) : (
               <>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Doküman (.txt, .md) veya ses dosyası (.mp3, .wav) yükleyin
+                  Doküman (.txt, .pdf, .docx) veya ses dosyası (.mp3, .wav) yükleyin
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Dosyayı sürükleyip bırakın veya seçmek için tıklayın
