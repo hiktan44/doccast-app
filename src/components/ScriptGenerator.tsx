@@ -1,49 +1,49 @@
 import React, { useState } from 'react';
-import { Script, ScriptSection, ScriptService } from '../services/ScriptService';
-import { PencilIcon, ArrowPathIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 interface Props {
   documentContent: string;
-  onScriptGenerated: (script: Script) => void;
+  onScriptGenerated: (script: any) => void;
 }
 
 export const ScriptGenerator: React.FC<Props> = ({ documentContent, onScriptGenerated }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingSection, setEditingSection] = useState<ScriptSection | null>(null);
-
-  const scriptService = new ScriptService();
 
   const handleGenerateScript = async () => {
     setIsGenerating(true);
     setError(null);
 
     try {
-      const script = await scriptService.generateScript(documentContent);
+      // Örnek bir script oluştur
+      const script = {
+        id: crypto.randomUUID(),
+        title: 'Test Script',
+        sections: [
+          {
+            id: crypto.randomUUID(),
+            speaker: 'Host',
+            content: 'Merhaba, bugün yapay zeka hakkında konuşacağız.',
+            duration: 5,
+            order: 0
+          },
+          {
+            id: crypto.randomUUID(),
+            speaker: 'Konuk',
+            content: 'Yapay zeka son yıllarda çok gelişti.',
+            duration: 4,
+            order: 1
+          }
+        ],
+        estimatedDuration: 9,
+        createdAt: new Date()
+      };
+
       onScriptGenerated(script);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const handleImproveSection = async (section: ScriptSection) => {
-    setEditingSection(section);
-    
-    try {
-      const improvedContent = await scriptService.improveSection(section);
-      // İyileştirilen bölümü parent komponente bildir
-      onScriptGenerated(currentScript => ({
-        ...currentScript,
-        sections: currentScript.sections.map(s =>
-          s.id === section.id ? { ...s, content: improvedContent } : s
-        )
-      }));
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setEditingSection(null);
     }
   };
 
@@ -77,31 +77,19 @@ export const ScriptGenerator: React.FC<Props> = ({ documentContent, onScriptGene
       </div>
 
       {error && (
-        <div className="p-4 mb-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg flex items-center justify-between">
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded-full"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+          {error}
         </div>
       )}
 
-      {/* Doküman önizleme */}
       <div className="mb-6">
-        <h3 className="font-medium mb-2 text-gray-900 dark:text-white">
-Doküman İçeriği</h3>
+        <h3 className="font-medium mb-2 text-gray-900 dark:text-white">Döküman İçeriği</h3>
         <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <p className="text-sm text-gray-600 dark:text-gray-300">
             {documentContent.slice(0, 200)}
             {documentContent.length > 200 ? '...' : ''}
           </p>
         </div>
-      </div>
-
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        Script oluşturmak için butona tıklayın
       </div>
     </div>
   );
