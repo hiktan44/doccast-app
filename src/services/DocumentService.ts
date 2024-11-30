@@ -1,11 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// PDF worker'ı doğrudan import et
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
-
-// Worker'ı ayarla
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// PDF worker'ı doğru şekilde yapılandır
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export class DocumentService {
   async readFile(file: File): Promise<string> {
@@ -37,10 +34,20 @@ export class DocumentService {
 
   private async readPdfFile(file: File): Promise<string> {
     try {
+      // PDF'i arraybuffer olarak oku
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      // PDF dokümanını yükle
+      const loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        verbosity: 0
+      });
+      
+      // PDF dokümanını al
+      const pdf = await loadingTask.promise;
       let fullText = '';
 
+      // Her sayfayı işle
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
