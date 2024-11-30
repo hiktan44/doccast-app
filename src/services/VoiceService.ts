@@ -2,19 +2,10 @@ export interface Voice {
   id: string;
   name: string;
   previewUrl?: string;
-  settings?: VoiceSettings;
 }
 
-export interface VoiceSettings {
-  stability: number;
-  similarity_boost: number;
-  style: number;
-  use_speaker_boost: boolean;
-}
-
-export interface AudioGeneration {
+export interface VoiceGeneration {
   id: string;
-  scriptSectionId: string;
   audioUrl: string;
   duration: number;
   status: 'pending' | 'processing' | 'completed' | 'error';
@@ -46,14 +37,18 @@ export class VoiceService {
       }
 
       const data = await response.json();
-      return data.voices;
+      return data.voices.map((voice: any) => ({
+        id: voice.voice_id,
+        name: voice.name,
+        previewUrl: voice.preview_url
+      }));
     } catch (error) {
       console.error('Ses listesi alma hatası:', error);
       throw new Error('Ses listesi alınamadı');
     }
   }
 
-  async generateAudio(text: string, voiceId: string, settings?: VoiceSettings): Promise<ArrayBuffer> {
+  async generateVoice(text: string, voiceId: string): Promise<string> {
     try {
       const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
         method: 'POST',
@@ -63,7 +58,11 @@ export class VoiceService {
         },
         body: JSON.stringify({
           text,
-          voice_settings: settings
+          model_id: 'eleven_monolingual_v1',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+          }
         })
       });
 
@@ -71,40 +70,30 @@ export class VoiceService {
         throw new Error('Ses oluşturulamadı');
       }
 
-      return await response.arrayBuffer();
+      const audioBlob = await response.blob();
+      return URL.createObjectURL(audioBlob);
     } catch (error) {
       console.error('Ses oluşturma hatası:', error);
       throw new Error('Ses oluşturulamadı');
     }
   }
 
-  createAudioUrl(audioBuffer: ArrayBuffer): string {
-    const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-    return URL.createObjectURL(blob);
-  }
+  async generateVoicesForScript(sections: Array<{ id: string; content: string }>, voiceId: string): Promise<VoiceGeneration[]> {
+    const generations: VoiceGeneration[] = [];
 
-  async generateAudioForScript(
-    scriptSections: { id: string; content: string }[], 
-    voiceId: string
-  ): Promise<AudioGeneration[]> {
-    const audioGenerations: AudioGeneration[] = [];
-
-    for (const section of scriptSections) {
+    for (const section of sections) {
       try {
-        const audioBuffer = await this.generateAudio(section.content, voiceId);
-        const audioUrl = this.createAudioUrl(audioBuffer);
-
-        audioGenerations.push({
-          id: crypto.randomUUID(),
-          scriptSectionId: section.id,
+        const audioUrl = await this.generateVoice(section.content, voiceId);
+        
+        generations.push({
+          id: section.id,
           audioUrl,
-          duration: 0, // Duration will be set when audio is loaded
+          duration: 0, // Audio yüklendiğinde güncellenecek
           status: 'completed'
         });
       } catch (error: any) {
-        audioGenerations.push({
-          id: crypto.randomUUID(),
-          scriptSectionId: section.id,
+        generations.push({
+          id: section.id,
           audioUrl: '',
           duration: 0,
           status: 'error',
@@ -113,6 +102,6 @@ export class VoiceService {
       }
     }
 
-    return audioGenerations;
+    return generations;
   }
 }
