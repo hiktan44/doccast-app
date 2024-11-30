@@ -1,7 +1,11 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// PDF worker'ı doğrudan import et
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+
+// Worker'ı ayarla
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export class DocumentService {
   async readFile(file: File): Promise<string> {
